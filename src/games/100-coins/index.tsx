@@ -106,9 +106,6 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
   const [pendingNextPlayer, setPendingNextPlayer] = useState<string | null>(null);
   const [activeViewingPlayer, setActiveViewingPlayer] = useState<string>('');
 
-  // UI state for showing upgrades screen
-  const [selectedPiece, setSelectedPiece] = useState<GamePiece | null>(null);
-  
   // Animation lock to show reveal before resetting round
   const [isResolving, setIsResolving] = useState(false);
   const [showRevealResult, setShowRevealResult] = useState(false);
@@ -156,23 +153,51 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
   const playerHasDiamond = state.hasDiamond[activeViewingPlayer];
 
   // Lock a piece selection
-  const selectPiece = (piece: GamePiece) => {
+  const confirmPiece = async (piece: GamePiece) => {
     if (state.winnerId || isResolving) return;
     audio.playPiecePlace();
-    setSelectedPiece(piece);
-  };
-
-  // Lock upgrade decision and submit selections
-  const confirmSelection = async (upgradeDecision: boolean) => {
-    if (!selectedPiece || state.winnerId || isResolving) return;
     
-    audio.playWoodKnock();
-    
-    // Build state update
     const updatedLockedPiece = {
       ...state.lockedPiece,
-      [activeViewingPlayer]: selectedPiece,
+      [activeViewingPlayer]: piece,
     };
+    
+    const nextState: HundredCoinsState = {
+      ...state,
+      lockedPiece: updatedLockedPiece,
+    };
+
+    const p1 = pKeys[0];
+    const p2 = pKeys[1];
+
+    if (!isMultiplayer) {
+      if (activeViewingPlayer === p1 && !updatedLockedPiece[p2]) {
+        // Player 1 chose piece. Pass device to Player 2
+        setPendingNextPlayer(p2);
+        setIsPassingDevice(true);
+        setActiveViewingPlayer(p2);
+        await handleStateChange(nextState);
+        return;
+      }
+      if (activeViewingPlayer === p2 && updatedLockedPiece[p1]) {
+        // Both players chose their pieces!
+        // Swap back to Player 1 to make the upgrade decision
+        setPendingNextPlayer(p1);
+        setIsPassingDevice(true);
+        setActiveViewingPlayer(p1);
+        await handleStateChange(nextState);
+        return;
+      }
+    } else {
+      await handleStateChange(nextState);
+    }
+  };
+
+  // Lock upgrade decision and resolve if both are fully complete
+  const confirmUpgrade = async (upgradeDecision: boolean) => {
+    if (state.winnerId || isResolving) return;
+    
+    audio.playWoodKnock();
     
     const updatedLockedUpgrade = {
       ...state.lockedUpgrade,
@@ -181,22 +206,15 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
 
     const nextState: HundredCoinsState = {
       ...state,
-      lockedPiece: updatedLockedPiece,
       lockedUpgrade: updatedLockedUpgrade,
     };
 
-    // Reset local selection UI
-    setSelectedPiece(null);
-
-    // Check if both selections are locked
     const p1 = pKeys[0];
     const p2 = pKeys[1];
-    const bothSelectedPieces = updatedLockedPiece[p1] && updatedLockedPiece[p2];
-    
-    // In local Pass & Play, we check if player 1 is locked. If yes, pass to player 2
+
     if (!isMultiplayer) {
-      if (activeViewingPlayer === p1 && !updatedLockedPiece[p2]) {
-        // Player 1 locked. Pass device to Player 2
+      if (activeViewingPlayer === p1 && updatedLockedUpgrade[p2] === null) {
+        // Player 1 chose upgrade. Pass device to Player 2
         setPendingNextPlayer(p2);
         setIsPassingDevice(true);
         setActiveViewingPlayer(p2);
@@ -206,10 +224,10 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     }
 
     const bothSelectedUpgrades = 
-      (updatedLockedUpgrade[p1] !== null && updatedLockedUpgrade[p1] !== undefined) && 
-      (updatedLockedUpgrade[p2] !== null && updatedLockedUpgrade[p2] !== undefined);
+      updatedLockedUpgrade[p1] !== null && 
+      updatedLockedUpgrade[p2] !== null;
 
-    if (bothSelectedPieces && bothSelectedUpgrades) {
+    if (bothSelectedUpgrades) {
       // Both locked, resolve combat phase!
       setIsResolving(true);
       await resolveRoundCombat(nextState);
@@ -547,15 +565,22 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                 </span>
                 
                 <div className="w-24 h-24 rounded-full border border-dashed border-brass/20 flex items-center justify-center">
-                  {!showRevealResult ? (
-                    renderFacedownToken(!!state.lockedPiece[pKeys[0]])
-                  ) : (
+                  {showRevealResult ? (
                     renderPieceToken(state.lockedPiece[pKeys[0]]!, state.lockedUpgrade[pKeys[0]]!, 'lg')
+                  ) : (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null) ? (
+                    renderPieceToken(state.lockedPiece[pKeys[0]]!, false, 'lg')
+                  ) : (
+                    renderFacedownToken(!!state.lockedPiece[pKeys[0]])
                   )}
                 </div>
                 {showRevealResult && state.lockedPiece[pKeys[0]] && (
                   <span className="text-[9px] text-brass font-bold uppercase font-serif tracking-wider">
                     {state.lockedPiece[pKeys[0]]} {state.lockedUpgrade[pKeys[0]] ? 'Lv2' : ''}
+                  </span>
+                )}
+                {!showRevealResult && (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null) && (
+                  <span className="text-[9px] text-brass/70 font-bold uppercase font-serif tracking-wider">
+                    {state.lockedPiece[pKeys[0]]}
                   </span>
                 )}
               </div>
@@ -567,15 +592,22 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                 </span>
 
                 <div className="w-24 h-24 rounded-full border border-dashed border-brass/20 flex items-center justify-center">
-                  {!showRevealResult ? (
-                    renderFacedownToken(!!state.lockedPiece[pKeys[1]])
-                  ) : (
+                  {showRevealResult ? (
                     renderPieceToken(state.lockedPiece[pKeys[1]]!, state.lockedUpgrade[pKeys[1]]!, 'lg')
+                  ) : (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null) ? (
+                    renderPieceToken(state.lockedPiece[pKeys[1]]!, false, 'lg')
+                  ) : (
+                    renderFacedownToken(!!state.lockedPiece[pKeys[1]])
                   )}
                 </div>
                 {showRevealResult && state.lockedPiece[pKeys[1]] && (
                   <span className="text-[9px] text-brass font-bold uppercase font-serif tracking-wider">
                     {state.lockedPiece[pKeys[1]]} {state.lockedUpgrade[pKeys[1]] ? 'Lv2' : ''}
+                  </span>
+                )}
+                {!showRevealResult && (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null) && (
+                  <span className="text-[9px] text-brass/70 font-bold uppercase font-serif tracking-wider">
+                    {state.lockedPiece[pKeys[1]]}
                   </span>
                 )}
               </div>
@@ -612,8 +644,8 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
             {!state.winnerId && !showRevealResult && (
               <div className="flex flex-col items-center gap-3 w-full mt-1.5">
                 
-                {/* Choose Piece Stage */}
-                {!selectedPiece ? (
+                {/* Stage 1: Choose Base Piece */}
+                {state.lockedPiece[activeViewingPlayer] === null ? (
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-xs text-brass font-serif tracking-widest uppercase">
                       Select A Piece To Wage
@@ -622,7 +654,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                       {currentRemainingPieces.map((piece) => (
                         <button
                           key={piece}
-                          onClick={() => selectPiece(piece)}
+                          onClick={() => confirmPiece(piece)}
                           className="flex flex-col items-center gap-1.5 active:scale-95 transition focus:outline-none cursor-pointer"
                           title={PIECE_DESCRIPTIONS[piece]}
                         >
@@ -634,16 +666,16 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                       ))}
                     </div>
                   </div>
-                ) : (
+                ) : (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null && state.lockedUpgrade[activeViewingPlayer] === null) ? (
                   
-                  /* Choose Diamond Upgrade Stage */
-                  <div className="wood-panel border border-brass/40 p-4 rounded-xl max-w-sm w-full text-center flex flex-col items-center gap-3">
+                  /* Stage 2: Choose Diamond Upgrade Stage */
+                  <div className="wood-panel border border-brass/40 p-4 rounded-xl max-w-sm w-full text-center flex flex-col items-center gap-3 animate-fade-in">
                     <span className="text-xs text-brass font-bold uppercase tracking-wider flex items-center gap-1.5">
                       <Sparkles size={14} className="text-brass animate-pulse" /> DIAMOND UPGRADE DECISION
                     </span>
                     <p className="text-[10px] text-ivory/70 leading-normal">
-                      Upgrade <strong className="text-brass uppercase">{selectedPiece}</strong>?
-                      {selectedPiece === 'king' 
+                      Upgrade <strong className="text-brass uppercase">{state.lockedPiece[activeViewingPlayer]}</strong>?
+                      {state.lockedPiece[activeViewingPlayer] === 'king' 
                         ? ' King becomes King Lv2. Only Commoner Lv2 can defeat King Lv2!'
                         : ` Advances piece one tier higher in the hierarchy.`}
                     </p>
@@ -651,13 +683,13 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                     {playerHasDiamond ? (
                       <div className="flex gap-3 w-full">
                         <button
-                          onClick={() => confirmSelection(true)}
+                          onClick={() => confirmUpgrade(true)}
                           className="flex-1 py-2 bg-brass hover:bg-[#d4b473] text-walnut font-serif font-bold text-xs rounded border border-brass/40 transition active:scale-95 cursor-pointer uppercase flex items-center justify-center gap-1"
                         >
                           Yes (Spend {renderDiamondSVG(true, 12)})
                         </button>
                         <button
-                          onClick={() => confirmSelection(false)}
+                          onClick={() => confirmUpgrade(false)}
                           className="flex-1 py-2 bg-walnut hover:bg-oak text-brass font-serif font-bold text-xs rounded border border-brass/25 transition active:scale-95 cursor-pointer uppercase"
                         >
                           No (Keep Diamond)
@@ -665,19 +697,17 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                       </div>
                     ) : (
                       <button
-                        onClick={() => confirmSelection(false)}
+                        onClick={() => confirmUpgrade(false)}
                         className="w-full py-2 bg-brass/15 border border-brass/40 text-brass font-serif font-bold text-xs rounded cursor-pointer uppercase"
                       >
                         Confirm Choice (No Diamond Available)
                       </button>
                     )}
-                    
-                    <button
-                      onClick={() => setSelectedPiece(null)}
-                      className="text-[9px] text-ivory/40 hover:text-ivory underline mt-1 cursor-pointer"
-                    >
-                      Cancel Choice
-                    </button>
+                  </div>
+                ) : (
+                  /* Stage 3: Locked decision, waiting for opponent */
+                  <div className="text-center py-4 text-brass font-serif text-xs animate-pulse">
+                    Locked Selection & Upgrade Decision. Waiting for opponent...
                   </div>
                 )}
               </div>
