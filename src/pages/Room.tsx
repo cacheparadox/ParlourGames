@@ -16,6 +16,18 @@ export const Room: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Local Pass & Play names state
+  const [namesConfirmed, setNamesConfirmed] = useState(false);
+  const [p1Name, setP1Name] = useState('');
+  const [p2Name, setP2Name] = useState('Chamber Companion');
+
+  // Sync state name with store name on load
+  useEffect(() => {
+    if (playerName && !p1Name) {
+      setP1Name(playerName);
+    }
+  }, [playerName]);
+
   // Authenticate user on load if not already done
   useEffect(() => {
     initializeUser();
@@ -85,9 +97,76 @@ export const Room: React.FC = () => {
       );
     }
 
+    if (!namesConfirmed) {
+      return (
+        <Tabletop
+          title={gameConfig.name}
+          feltColor={gameConfig.id === 'black-card' ? 'green' : 'burgundy'}
+          onReturnHome={() => navigate('/')}
+        >
+          <div className="flex-1 flex flex-col items-center justify-center p-4">
+            <div className="wood-panel border-4 border-brass rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative text-center">
+              {/* Ornate corner brass accents */}
+              <div className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full bg-brass opacity-60"></div>
+              <div className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full bg-brass opacity-60"></div>
+              <div className="absolute bottom-1.5 left-1.5 w-3 h-3 rounded-full bg-brass opacity-60"></div>
+              <div className="absolute bottom-1.5 right-1.5 w-3 h-3 rounded-full bg-brass opacity-60"></div>
+
+              <h3 className="font-serif font-extrabold text-xl text-brass mb-2 uppercase tracking-widest">
+                Pass & Play Setup
+              </h3>
+              <p className="text-xs text-ivory/60 mb-6 leading-relaxed font-sans">
+                Input the monikers of the players who will sit at this parlor table.
+              </p>
+
+              <div className="flex flex-col gap-4 mb-6 text-left">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-brass font-bold uppercase tracking-wider">
+                    Player 1 Name
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={16}
+                    value={p1Name}
+                    onChange={(e) => setP1Name(e.target.value)}
+                    className="bg-[#120a06]/70 border border-brass/30 rounded px-3 py-2 text-brass font-bold text-sm focus:outline-none focus:border-brass"
+                    placeholder="Player 1"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] text-brass font-bold uppercase tracking-wider">
+                    Player 2 Name
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={16}
+                    value={p2Name}
+                    onChange={(e) => setP2Name(e.target.value)}
+                    className="bg-[#120a06]/70 border border-brass/30 rounded px-3 py-2 text-brass font-bold text-sm focus:outline-none focus:border-brass"
+                    placeholder="Player 2"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  audio.playCoinClink();
+                  setNamesConfirmed(true);
+                }}
+                className="w-full py-2.5 bg-brass hover:bg-[#d4b473] text-walnut font-serif font-extrabold text-sm rounded border border-brass/40 cursor-pointer shadow-lg active:scale-95 transition uppercase tracking-wider"
+              >
+                Begin Match
+              </button>
+            </div>
+          </div>
+        </Tabletop>
+      );
+    }
+
     const localPlayers = {
-      player1: { uid: 'player1', name: playerName, isHost: true, ready: true },
-      player2: { uid: 'player2', name: 'Chamber Companion', isHost: false, ready: true },
+      player1: { uid: 'player1', name: p1Name || 'Player 1', isHost: true, ready: true },
+      player2: { uid: 'player2', name: p2Name || 'Player 2', isHost: false, ready: true },
     };
 
     const GameComponent = gameConfig.component;

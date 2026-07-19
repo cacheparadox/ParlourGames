@@ -224,11 +224,11 @@ export const BlackCardGame: React.FC<BlackCardGameProps> = ({
     };
 
     return (
-      <div className="w-full h-full bg-[#fcf9f2] rounded-xl flex flex-col justify-between p-2 sm:p-3 border-2 border-brass/55 shadow-inner relative text-left">
+      <div className="w-full h-full bg-gradient-to-b from-[#141211] to-[#0c0a09] rounded-xl flex flex-col justify-between p-2 sm:p-3 border-2 border-brass/75 shadow-[inset_0_2px_8px_rgba(0,0,0,0.85)] relative text-left">
         {/* Ornate corner indices */}
-        <div className="flex justify-between items-start leading-none font-serif text-sm">
+        <div className="flex justify-between items-start leading-none font-serif text-sm text-brass">
           <div className="flex flex-col items-center">
-            <span className="text-xs sm:text-sm">{renderSuitSymbol(suit)}</span>
+            <span className="text-xs sm:text-sm">{renderSuitSymbol(suit, "w-3 h-3 sm:w-3.5 sm:h-3.5")}</span>
           </div>
           <div className="text-[10px] text-brass/80 font-bold opacity-30 select-none">P</div>
         </div>
@@ -238,14 +238,14 @@ export const BlackCardGame: React.FC<BlackCardGameProps> = ({
           <img 
             src={suitImages[suit]} 
             alt={suit} 
-            className="max-h-16 sm:max-h-24 w-auto object-contain opacity-95 rounded-md filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.15)]"
+            className="max-h-16 sm:max-h-24 w-auto object-contain opacity-95 rounded-md filter drop-shadow-[0_0_8px_rgba(212,180,115,0.35)]"
           />
         </div>
 
         {/* Bottom Index */}
-        <div className="flex justify-between items-end leading-none font-serif text-sm rotate-180">
-          <div className="flex flex-col items-center">
-            <span className="text-xs sm:text-sm">{renderSuitSymbol(suit)}</span>
+        <div className="flex justify-between items-end leading-none font-serif text-sm rotate-180 text-brass">
+          <div className="flex flex-col items-center font-bold">
+            <span className="text-xs sm:text-sm">{renderSuitSymbol(suit, "w-3 h-3 sm:w-3.5 sm:h-3.5")}</span>
           </div>
           <div className="text-[10px] text-brass/80 font-bold opacity-30 select-none">P</div>
         </div>
