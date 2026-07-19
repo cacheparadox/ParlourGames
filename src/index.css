@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-walnut: #3d2314;
+  --color-oak: #5c3a21;
+  --color-velvet-green: #1b4d3e;
+  --color-velvet-burgundy: #58111a;
+  --color-brass: #c5a059;
+  --color-ivory: #fdfaf2;
+  --color-charcoal: #262626;
+
+  --font-serif: "Cinzel", "Playfair Display", Georgia, serif;
+  --font-sans: "Outfit", "Inter", system-ui, sans-serif;
+}
+
+/* Custom premium scrollbar and design styles */
+body {
+  font-family: var(--font-sans);
+  background-color: #120a06;
+  background-image: radial-gradient(circle at center, #1b0e07 0%, #0d0603 100%);
+  color: var(--color-ivory);
+}
+
+/* Wood texture surface style */
+.bg-leather {
+  background-color: #1c1008;
+  background-image: 
+    radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 0),
+    radial-gradient(rgba(0, 0, 0, 0.3) 1px, transparent 0);
+  background-size: 4px 4px;
+}
+
+/* 3D Box & Table styles */
+.wood-board {
+  border: 12px solid var(--color-oak);
+  box-shadow: 
+    inset 0 0 20px rgba(0, 0, 0, 0.8),
+    0 10px 30px rgba(0, 0, 0, 0.7);
+  background-color: #27140b;
+}
+
+.wood-panel {
+  background: linear-gradient(135deg, #422516, #2d170d);
+  border: 2px solid #52311f;
+  box-shadow: 
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.brass-frame {
+  border: 2px solid var(--color-brass);
+  box-shadow: 
+    inset 0 0 10px rgba(0, 0, 0, 0.4),
+    0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.velvet-felt-green {
+  background-color: var(--color-velvet-green);
+  background-image: radial-gradient(circle at center, #276250 0%, #153c30 100%);
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+}
+
+.velvet-felt-burgundy {
+  background-color: var(--color-velvet-burgundy);
+  background-image: radial-gradient(circle at center, #781c28 0%, #400c12 100%);
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
+}
+
+/* Elegant scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #120a06;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-brass);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d4b473;
+}
+
+/* Custom animations and utility classes */
+.gold-glow {
+  text-shadow: 0 0 10px rgba(197, 160, 89, 0.6);
+}
+
+.gold-glow-box {
+  box-shadow: 0 0 15px rgba(197, 160, 89, 0.4);
+}
