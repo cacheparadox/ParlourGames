@@ -149,8 +149,11 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
   };
 
   const opponentKey = isMultiplayer ? (opponentId || '') : pKeys.find((id) => id !== activeViewingPlayer) || '';
-  const currentRemainingPieces = state.remainingPieces[activeViewingPlayer] || [];
-  const playerHasDiamond = state.hasDiamond[activeViewingPlayer];
+  const currentRemainingPieces = (state.remainingPieces || {})[activeViewingPlayer] || [];
+  const playerHasDiamond = !!(state.hasDiamond || {})[activeViewingPlayer];
+
+  const lockedPieceState = state.lockedPiece || {};
+  const lockedUpgradeState = state.lockedUpgrade || {};
 
   // Lock a piece selection
   const confirmPiece = async (piece: GamePiece) => {
@@ -158,7 +161,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     audio.playPiecePlace();
     
     const updatedLockedPiece = {
-      ...state.lockedPiece,
+      ...lockedPieceState,
       [activeViewingPlayer]: piece,
     };
     
@@ -200,7 +203,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     audio.playWoodKnock();
     
     const updatedLockedUpgrade = {
-      ...state.lockedUpgrade,
+      ...lockedUpgradeState,
       [activeViewingPlayer]: upgradeDecision,
     };
 
@@ -213,7 +216,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     const p2 = pKeys[1];
 
     if (!isMultiplayer) {
-      if (activeViewingPlayer === p1 && updatedLockedUpgrade[p2] === null) {
+      if (activeViewingPlayer === p1 && (updatedLockedUpgrade[p2] === undefined || updatedLockedUpgrade[p2] === null || updatedLockedUpgrade[p2] === false)) {
         // Player 1 chose upgrade. Pass device to Player 2
         setPendingNextPlayer(p2);
         setIsPassingDevice(true);
@@ -224,8 +227,8 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     }
 
     const bothSelectedUpgrades = 
-      updatedLockedUpgrade[p1] !== null && 
-      updatedLockedUpgrade[p2] !== null;
+      updatedLockedUpgrade[p1] !== undefined && updatedLockedUpgrade[p1] !== null && updatedLockedUpgrade[p1] !== (false as any) &&
+      updatedLockedUpgrade[p2] !== undefined && updatedLockedUpgrade[p2] !== null && updatedLockedUpgrade[p2] !== (false as any);
 
     if (bothSelectedUpgrades) {
       // Both locked, resolve combat phase!
@@ -241,11 +244,14 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     const p1 = pKeys[0];
     const p2 = pKeys[1];
     
-    const piece1 = currentState.lockedPiece[p1]!;
-    const upgrade1 = currentState.lockedUpgrade[p1]!;
+    const currentLockedPiece = currentState.lockedPiece || {};
+    const currentLockedUpgrade = currentState.lockedUpgrade || {};
+
+    const piece1 = currentLockedPiece[p1] as GamePiece;
+    const upgrade1 = currentLockedUpgrade[p1] === true;
     
-    const piece2 = currentState.lockedPiece[p2]!;
-    const upgrade2 = currentState.lockedUpgrade[p2]!;
+    const piece2 = currentLockedPiece[p2] as GamePiece;
+    const upgrade2 = currentLockedUpgrade[p2] === true;
 
     const result = resolveCombat(piece1, upgrade1, piece2, upgrade2);
     
@@ -253,45 +259,47 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     setTimeout(() => audio.playPiecePlace(), 200);
     setTimeout(() => audio.playCoinClink(), 700);
 
-    const nextCoins = { ...currentState.coins };
+    const nextCoins = { ...(currentState.coins || {}) };
     let wagerWon = currentState.wager;
     let nextPot = currentState.pot;
     
     let roundText = '';
 
     if (result.winner === 'A') {
-      nextCoins[p1] += wagerWon;
+      nextCoins[p1] = (nextCoins[p1] || 0) + wagerWon;
       nextPot -= wagerWon;
-      roundText = `Round ${currentState.round}: ${players[p1].name} played ${result.resolvedA.toUpperCase()}, defeating ${players[p2].name}'s ${result.resolvedB.toUpperCase()} to win ${wagerWon} Coins.`;
+      roundText = `Round ${currentState.round}: ${players[p1]?.name || 'Player 1'} played ${result.resolvedA.toUpperCase()}, defeating ${players[p2]?.name || 'Player 2'}'s ${result.resolvedB.toUpperCase()} to win ${wagerWon} Coins.`;
     } else if (result.winner === 'B') {
-      nextCoins[p2] += wagerWon;
+      nextCoins[p2] = (nextCoins[p2] || 0) + wagerWon;
       nextPot -= wagerWon;
-      roundText = `Round ${currentState.round}: ${players[p2].name} played ${result.resolvedB.toUpperCase()}, defeating ${players[p1].name}'s ${result.resolvedA.toUpperCase()} to win ${wagerWon} Coins.`;
+      roundText = `Round ${currentState.round}: ${players[p2]?.name || 'Player 2'} played ${result.resolvedB.toUpperCase()}, defeating ${players[p1]?.name || 'Player 1'}'s ${result.resolvedA.toUpperCase()} to win ${wagerWon} Coins.`;
     } else {
       wagerWon = 0;
       roundText = `Round ${currentState.round}: Both players played ${result.resolvedA.toUpperCase()}. Tie - no coins awarded.`;
     }
 
     // Remove used pieces
+    const currentPieces = currentState.remainingPieces || {};
     const nextPieces = {
-      [p1]: (currentState.remainingPieces[p1] || []).filter((p) => p !== piece1),
-      [p2]: (currentState.remainingPieces[p2] || []).filter((p) => p !== piece2),
+      [p1]: (currentPieces[p1] || []).filter((p) => p !== piece1),
+      [p2]: (currentPieces[p2] || []).filter((p) => p !== piece2),
     };
 
     // Spend Diamond if upgrade was true
+    const currentDiamond = currentState.hasDiamond || {};
     const nextDiamond = {
-      [p1]: upgrade1 ? false : currentState.hasDiamond[p1],
-      [p2]: upgrade2 ? false : currentState.hasDiamond[p2],
+      [p1]: upgrade1 ? false : !!currentDiamond[p1],
+      [p2]: upgrade2 ? false : !!currentDiamond[p2],
     };
 
     // Capture results for display
     setRoundResult({
       piece1,
       upgrade1,
-      name1: players[p1].name,
+      name1: players[p1]?.name || 'Player 1',
       piece2,
       upgrade2,
-      name2: players[p2].name,
+      name2: players[p2]?.name || 'Player 2',
       winner: result.winner,
       resolvedA: result.resolvedA,
       resolvedB: result.resolvedB,
@@ -308,7 +316,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
       coins: nextCoins,
       remainingPieces: nextPieces,
       hasDiamond: nextDiamond,
-      history: [...currentState.history, roundText],
+      history: [...(currentState.history || []), roundText],
     };
 
     await handleStateChange(nextStateWithReveal);
@@ -323,21 +331,28 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     const p1 = pKeys[0];
     const p2 = pKeys[1];
     
+    const currentPieces = state.remainingPieces || {};
+    const currentCoins = state.coins || {};
+    const currentDiamond = state.hasDiamond || {};
+
     // Check game over
-    const allPiecesUsed = state.remainingPieces[p1].length === 0;
+    const allPiecesUsed = (currentPieces[p1] || []).length === 0;
     const potEmpty = state.pot <= 0;
 
     if (allPiecesUsed || potEmpty) {
       // Determine winner
       let winnerId: string | null = null;
-      if (state.coins[p1] > state.coins[p2]) {
+      const c1 = currentCoins[p1] || 0;
+      const c2 = currentCoins[p2] || 0;
+
+      if (c1 > c2) {
         winnerId = p1;
-      } else if (state.coins[p2] > state.coins[p1]) {
+      } else if (c2 > c1) {
         winnerId = p2;
       } else {
         // Tie break: Player still holding Diamond wins
-        const d1 = state.hasDiamond[p1];
-        const d2 = state.hasDiamond[p2];
+        const d1 = currentDiamond[p1];
+        const d2 = currentDiamond[p2];
         if (d1 && !d2) {
           winnerId = p1;
         } else if (d2 && !d1) {
@@ -350,14 +365,14 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
 
       const winMessage = winnerId === 'tie'
         ? `Game Over. Absolute Tie! Replay Match.`
-        : `Game Over. Winner is ${players[winnerId!]?.name} with ${state.coins[winnerId!]} Coins!`;
+        : `Game Over. Winner is ${players[winnerId!]?.name || 'Winner'} with ${currentCoins[winnerId!] || 0} Coins!`;
 
       const nextState: HundredCoinsState = {
         ...state,
-        lockedPiece: { [p1]: null, [p2]: null },
-        lockedUpgrade: { [p1]: null, [p2]: null },
+        lockedPiece: { [p1]: false, [p2]: false } as any,
+        lockedUpgrade: { [p1]: false, [p2]: false } as any,
         winnerId,
-        history: [...state.history, winMessage],
+        history: [...(state.history || []), winMessage],
       };
       
       await handleStateChange(nextState);
@@ -369,10 +384,10 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
       const nextState: HundredCoinsState = {
         ...state,
         wager: nextWager,
-        lockedPiece: { [p1]: null, [p2]: null },
-        lockedUpgrade: { [p1]: null, [p2]: null },
+        lockedPiece: { [p1]: false, [p2]: false } as any,
+        lockedUpgrade: { [p1]: false, [p2]: false } as any,
         round: nextRound,
-        history: [...state.history, `Round ${nextRound} wager set to ${nextWager} Coins.`],
+        history: [...(state.history || []), `Round ${nextRound} wager set to ${nextWager} Coins.`],
       };
 
       if (!isMultiplayer) {
@@ -566,21 +581,21 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                 
                 <div className="w-24 h-24 rounded-full border border-dashed border-brass/20 flex items-center justify-center">
                   {showRevealResult ? (
-                    renderPieceToken(state.lockedPiece[pKeys[0]]!, state.lockedUpgrade[pKeys[0]]!, 'lg')
-                  ) : (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null) ? (
-                    renderPieceToken(state.lockedPiece[pKeys[0]]!, false, 'lg')
+                    renderPieceToken((lockedPieceState[pKeys[0]] as GamePiece), (lockedUpgradeState[pKeys[0]] === true), 'lg')
+                  ) : (lockedPieceState[pKeys[0]] && lockedPieceState[pKeys[1]]) ? (
+                    renderPieceToken((lockedPieceState[pKeys[0]] as GamePiece), false, 'lg')
                   ) : (
-                    renderFacedownToken(!!state.lockedPiece[pKeys[0]])
+                    renderFacedownToken(!!lockedPieceState[pKeys[0]])
                   )}
                 </div>
-                {showRevealResult && state.lockedPiece[pKeys[0]] && (
+                {showRevealResult && lockedPieceState[pKeys[0]] && (
                   <span className="text-[9px] text-brass font-bold uppercase font-serif tracking-wider">
-                    {state.lockedPiece[pKeys[0]]} {state.lockedUpgrade[pKeys[0]] ? 'Lv2' : ''}
+                    {lockedPieceState[pKeys[0]]} {lockedUpgradeState[pKeys[0]] ? 'Lv2' : ''}
                   </span>
                 )}
-                {!showRevealResult && (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null) && (
+                {!showRevealResult && (lockedPieceState[pKeys[0]] && lockedPieceState[pKeys[1]]) && (
                   <span className="text-[9px] text-brass/70 font-bold uppercase font-serif tracking-wider">
-                    {state.lockedPiece[pKeys[0]]}
+                    {lockedPieceState[pKeys[0]]}
                   </span>
                 )}
               </div>
@@ -593,21 +608,21 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
 
                 <div className="w-24 h-24 rounded-full border border-dashed border-brass/20 flex items-center justify-center">
                   {showRevealResult ? (
-                    renderPieceToken(state.lockedPiece[pKeys[1]]!, state.lockedUpgrade[pKeys[1]]!, 'lg')
-                  ) : (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null) ? (
-                    renderPieceToken(state.lockedPiece[pKeys[1]]!, false, 'lg')
+                    renderPieceToken((lockedPieceState[pKeys[1]] as GamePiece), (lockedUpgradeState[pKeys[1]] === true), 'lg')
+                  ) : (lockedPieceState[pKeys[0]] && lockedPieceState[pKeys[1]]) ? (
+                    renderPieceToken((lockedPieceState[pKeys[1]] as GamePiece), false, 'lg')
                   ) : (
-                    renderFacedownToken(!!state.lockedPiece[pKeys[1]])
+                    renderFacedownToken(!!lockedPieceState[pKeys[1]])
                   )}
                 </div>
-                {showRevealResult && state.lockedPiece[pKeys[1]] && (
+                {showRevealResult && lockedPieceState[pKeys[1]] && (
                   <span className="text-[9px] text-brass font-bold uppercase font-serif tracking-wider">
-                    {state.lockedPiece[pKeys[1]]} {state.lockedUpgrade[pKeys[1]] ? 'Lv2' : ''}
+                    {lockedPieceState[pKeys[1]]} {lockedUpgradeState[pKeys[1]] ? 'Lv2' : ''}
                   </span>
                 )}
-                {!showRevealResult && (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null) && (
+                {!showRevealResult && (lockedPieceState[pKeys[0]] && lockedPieceState[pKeys[1]]) && (
                   <span className="text-[9px] text-brass/70 font-bold uppercase font-serif tracking-wider">
-                    {state.lockedPiece[pKeys[1]]}
+                    {lockedPieceState[pKeys[1]]}
                   </span>
                 )}
               </div>
@@ -635,7 +650,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                 
                 {/* Score */}
                 <div className="flex items-center gap-1 font-serif text-brass font-bold bg-walnut/60 px-2.5 py-0.5 rounded border border-brass/25">
-                  <Coins size={12} /> {state.coins[activeViewingPlayer]} Coins
+                  <Coins size={12} /> {(state.coins || {})[activeViewingPlayer] || 0} Coins
                 </div>
               </div>
             </div>
@@ -645,7 +660,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
               <div className="flex flex-col items-center gap-3 w-full mt-1.5">
                 
                 {/* Stage 1: Choose Base Piece */}
-                {state.lockedPiece[activeViewingPlayer] === null ? (
+                {!lockedPieceState[activeViewingPlayer] ? (
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-xs text-brass font-serif tracking-widest uppercase">
                       Select A Piece To Wage
@@ -666,7 +681,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                       ))}
                     </div>
                   </div>
-                ) : (state.lockedPiece[pKeys[0]] !== null && state.lockedPiece[pKeys[1]] !== null && state.lockedUpgrade[activeViewingPlayer] === null) ? (
+                ) : (lockedPieceState[pKeys[0]] && lockedPieceState[pKeys[1]] && (lockedUpgradeState[activeViewingPlayer] === undefined || lockedUpgradeState[activeViewingPlayer] === null || lockedUpgradeState[activeViewingPlayer] === (false as any))) ? (
                   
                   /* Stage 2: Choose Diamond Upgrade Stage */
                   <div className="wood-panel border border-brass/40 p-4 rounded-xl max-w-sm w-full text-center flex flex-col items-center gap-3 animate-fade-in">
@@ -674,8 +689,8 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                       <Sparkles size={14} className="text-brass animate-pulse" /> DIAMOND UPGRADE DECISION
                     </span>
                     <p className="text-[10px] text-ivory/70 leading-normal">
-                      Upgrade <strong className="text-brass uppercase">{state.lockedPiece[activeViewingPlayer]}</strong>?
-                      {state.lockedPiece[activeViewingPlayer] === 'king' 
+                      Upgrade <strong className="text-brass uppercase">{lockedPieceState[activeViewingPlayer]}</strong>?
+                      {lockedPieceState[activeViewingPlayer] === 'king' 
                         ? ' King becomes King Lv2. Only Commoner Lv2 can defeat King Lv2!'
                         : ` Advances piece one tier higher in the hierarchy.`}
                     </p>
@@ -727,7 +742,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
               <div className="flex flex-col gap-3">
                 {pKeys.map((pId) => {
                   const name = players[pId]?.name || 'Player';
-                  const isLocked = !!state.lockedPiece[pId];
+                  const isLocked = !!lockedPieceState[pId];
                   return (
                     <div
                       key={pId}
@@ -815,7 +830,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                     <>
                       🏆 {players[state.winnerId]?.name} Wins<br />
                       <span className="text-[10px] text-brass/75 font-normal">
-                        ({state.coins[state.winnerId]} Coins)
+                        ({(state.coins || {})[state.winnerId] || 0} Coins)
                       </span>
                     </>
                   )}
