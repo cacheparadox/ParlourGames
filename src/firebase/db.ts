@@ -1,9 +1,13 @@
-import { ref, set, onValue, get, update } from 'firebase/database';
+import { ref, set, onValue, get, update, remove } from 'firebase/database';
 import { signInAnonymously } from 'firebase/auth';
 import { db, auth, isFirebaseConfigured } from './config';
 
 // Define a subscriber callback type
 type RoomCallback = (room: any) => void;
+
+// Room Expiration Time (default: 24 hours)
+export const ROOM_TTL_HOURS = 24;
+export const ROOM_TTL_MS = ROOM_TTL_HOURS * 60 * 60 * 1000;
 
 // Mock database registry for subscribers in mock mode
 const mockSubscribers: Record<string, Set<RoomCallback>> = {};
@@ -31,6 +35,55 @@ export function generateRoomId(): string {
   return code;
 }
 
+/**
+ * Sweep and delete rooms older than ROOM_TTL_HOURS.
+ * Runs passively on database interactions to keep the database clean automatically.
+ */
+export async function cleanupExpiredRooms(): Promise<void> {
+  const now = Date.now();
+
+  if (isFirebaseConfigured && db) {
+    try {
+      const roomsRef = ref(db, 'rooms');
+      const snapshot = await get(roomsRef);
+      if (snapshot.exists()) {
+        const rooms = snapshot.val();
+        const updates: Record<string, null> = {};
+        let hasExpired = false;
+
+        Object.entries(rooms).forEach(([roomId, room]: [string, any]) => {
+          if (room && room.createdAt && (now - room.createdAt > ROOM_TTL_MS)) {
+            updates[roomId] = null;
+            hasExpired = true;
+          }
+        });
+
+        if (hasExpired) {
+          await update(roomsRef, updates);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to clean up expired rooms:", e);
+    }
+  } else {
+    // LocalStorage fallback cleanup
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('parlour_room_')) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const room = JSON.parse(raw);
+            if (room.createdAt && (now - room.createdAt > ROOM_TTL_MS)) {
+              localStorage.removeItem(key);
+            }
+          }
+        } catch (_) {}
+      }
+    }
+  }
+}
+
 // Authenticate user anonymously
 export async function authenticateUser(): Promise<string> {
   if (isFirebaseConfigured && auth) {
@@ -53,6 +106,9 @@ export async function authenticateUser(): Promise<string> {
 
 // Create a room
 export async function createRoom(gameType: string, hostId: string, hostName: string): Promise<string> {
+  // Trigger background cleanup of expired rooms
+  cleanupExpiredRooms().catch(() => {});
+
   const roomId = generateRoomId();
   const initialRoom = {
     roomId,
@@ -84,12 +140,23 @@ export async function createRoom(gameType: string, hostId: string, hostName: str
 // Join a room
 export async function joinRoom(roomId: string, playerUid: string, playerName: string): Promise<boolean> {
   const upperRoomId = roomId.toUpperCase().trim();
+  
+  // Trigger background cleanup of expired rooms
+  cleanupExpiredRooms().catch(() => {});
+
   if (isFirebaseConfigured && db) {
     const roomRef = ref(db, `rooms/${upperRoomId}`);
     const snapshot = await get(roomRef);
     if (!snapshot.exists()) return false;
     
     const roomData = snapshot.val();
+
+    // Check if room has expired
+    if (roomData.createdAt && (Date.now() - roomData.createdAt > ROOM_TTL_MS)) {
+      await remove(roomRef);
+      return false; // Room expired and deleted
+    }
+
     if (Object.keys(roomData.players || {}).length >= 2 && !roomData.players[playerUid]) {
       return false; // Room full
     }
@@ -110,6 +177,13 @@ export async function joinRoom(roomId: string, playerUid: string, playerName: st
     if (!raw) return false;
     
     const roomData = JSON.parse(raw);
+
+    // Check if room has expired
+    if (roomData.createdAt && (Date.now() - roomData.createdAt > ROOM_TTL_MS)) {
+      localStorage.removeItem(`parlour_room_${upperRoomId}`);
+      return false;
+    }
+
     if (Object.keys(roomData.players || {}).length >= 2 && !roomData.players[playerUid]) {
       return false; // Room full
     }
@@ -161,32 +235,45 @@ export async function updateRoom(roomId: string, updates: Partial<any>): Promise
 
 // Subscribe to room changes
 export function subscribeToRoom(roomId: string, callback: RoomCallback): () => void {
+  const upperRoomId = roomId.toUpperCase().trim();
   if (isFirebaseConfigured && db) {
-    const roomRef = ref(db, `rooms/${roomId}`);
+    const roomRef = ref(db, `rooms/${upperRoomId}`);
     const unsubscribe = onValue(roomRef, (snapshot) => {
       if (snapshot.exists()) {
-        callback(snapshot.val());
+        const roomData = snapshot.val();
+        if (roomData.createdAt && (Date.now() - roomData.createdAt > ROOM_TTL_MS)) {
+          // Room expired - delete it and notify subscriber
+          remove(roomRef).catch(() => {});
+          callback(null);
+        } else {
+          callback(roomData);
+        }
       } else {
         callback(null);
       }
     });
     return () => unsubscribe();
   } else {
-    if (!mockSubscribers[roomId]) {
-      mockSubscribers[roomId] = new Set();
+    if (!mockSubscribers[upperRoomId]) {
+      mockSubscribers[upperRoomId] = new Set();
     }
-    mockSubscribers[roomId].add(callback);
+    mockSubscribers[upperRoomId].add(callback);
     
-    const raw = localStorage.getItem(`parlour_room_${roomId}`);
+    const raw = localStorage.getItem(`parlour_room_${upperRoomId}`);
     if (raw) {
       const parsed = JSON.parse(raw);
-      setTimeout(() => callback(parsed), 0);
+      if (parsed.createdAt && (Date.now() - parsed.createdAt > ROOM_TTL_MS)) {
+        localStorage.removeItem(`parlour_room_${upperRoomId}`);
+        setTimeout(() => callback(null), 0);
+      } else {
+        setTimeout(() => callback(parsed), 0);
+      }
     }
 
     return () => {
-      mockSubscribers[roomId]?.delete(callback);
-      if (mockSubscribers[roomId]?.size === 0) {
-        delete mockSubscribers[roomId];
+      mockSubscribers[upperRoomId]?.delete(callback);
+      if (mockSubscribers[upperRoomId]?.size === 0) {
+        delete mockSubscribers[upperRoomId];
       }
     };
   }
