@@ -211,15 +211,15 @@ export function initializeHundredCoinsState(players: string[]): any {
   const remainingPieces: Record<string, GamePiece[]> = {};
   const hasDiamond: Record<string, boolean> = {};
   const coins: Record<string, number> = {};
-  const lockedPiece: Record<string, GamePiece | false> = {};
-  const lockedUpgrade: Record<string, boolean> = {};
+  const lockedPiece: Record<string, GamePiece | null> = {};
+  const lockedUpgrade: Record<string, boolean | null> = {};
 
   players.forEach((pId) => {
     remainingPieces[pId] = ['king', 'general', 'knight', 'soldier', 'commoner'];
     hasDiamond[pId] = true;
     coins[pId] = 0;
-    lockedPiece[pId] = false;
-    lockedUpgrade[pId] = false;
+    lockedPiece[pId] = null;
+    lockedUpgrade[pId] = null;
   });
 
   return {

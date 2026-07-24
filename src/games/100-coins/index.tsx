@@ -216,7 +216,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     const p2 = pKeys[1];
 
     if (!isMultiplayer) {
-      if (activeViewingPlayer === p1 && (updatedLockedUpgrade[p2] === undefined || updatedLockedUpgrade[p2] === null || updatedLockedUpgrade[p2] === false)) {
+      if (activeViewingPlayer === p1 && (updatedLockedUpgrade[p2] === undefined || updatedLockedUpgrade[p2] === null)) {
         // Player 1 chose upgrade. Pass device to Player 2
         setPendingNextPlayer(p2);
         setIsPassingDevice(true);
@@ -227,8 +227,8 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     }
 
     const bothSelectedUpgrades = 
-      updatedLockedUpgrade[p1] !== undefined && updatedLockedUpgrade[p1] !== null && updatedLockedUpgrade[p1] !== (false as any) &&
-      updatedLockedUpgrade[p2] !== undefined && updatedLockedUpgrade[p2] !== null && updatedLockedUpgrade[p2] !== (false as any);
+      updatedLockedUpgrade[p1] !== undefined && updatedLockedUpgrade[p1] !== null &&
+      updatedLockedUpgrade[p2] !== undefined && updatedLockedUpgrade[p2] !== null;
 
     if (bothSelectedUpgrades) {
       // Both locked, resolve combat phase!
@@ -369,8 +369,8 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
 
       const nextState: HundredCoinsState = {
         ...state,
-        lockedPiece: { [p1]: false, [p2]: false } as any,
-        lockedUpgrade: { [p1]: false, [p2]: false } as any,
+        lockedPiece: { [p1]: null, [p2]: null },
+        lockedUpgrade: { [p1]: null, [p2]: null },
         winnerId,
         history: [...(state.history || []), winMessage],
       };
@@ -384,8 +384,8 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
       const nextState: HundredCoinsState = {
         ...state,
         wager: nextWager,
-        lockedPiece: { [p1]: false, [p2]: false } as any,
-        lockedUpgrade: { [p1]: false, [p2]: false } as any,
+        lockedPiece: { [p1]: null, [p2]: null },
+        lockedUpgrade: { [p1]: null, [p2]: null },
         round: nextRound,
         history: [...(state.history || []), `Round ${nextRound} wager set to ${nextWager} Coins.`],
       };
@@ -681,7 +681,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
                       ))}
                     </div>
                   </div>
-                ) : (lockedPieceState[pKeys[0]] && lockedPieceState[pKeys[1]] && (lockedUpgradeState[activeViewingPlayer] === undefined || lockedUpgradeState[activeViewingPlayer] === null || lockedUpgradeState[activeViewingPlayer] === (false as any))) ? (
+                ) : (lockedPieceState[pKeys[0]] && lockedPieceState[pKeys[1]] && (lockedUpgradeState[activeViewingPlayer] === undefined || lockedUpgradeState[activeViewingPlayer] === null)) ? (
                   
                   /* Stage 2: Choose Diamond Upgrade Stage */
                   <div className="wood-panel border border-brass/40 p-4 rounded-xl max-w-sm w-full text-center flex flex-col items-center gap-3 animate-fade-in">

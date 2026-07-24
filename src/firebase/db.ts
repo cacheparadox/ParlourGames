@@ -78,7 +78,7 @@ export async function cleanupExpiredRooms(): Promise<void> {
               localStorage.removeItem(key);
             }
           }
-        } catch (_) {}
+        } catch (_) { }
       }
     }
   }
@@ -94,7 +94,7 @@ export async function authenticateUser(): Promise<string> {
       console.error("Anonymous authentication failed, using local storage id instead.", e);
     }
   }
-  
+
   // Fallback to local storage ID if firebase is not configured
   let localUid = localStorage.getItem('parlour_local_uid');
   if (!localUid) {
@@ -107,7 +107,7 @@ export async function authenticateUser(): Promise<string> {
 // Create a room
 export async function createRoom(gameType: string, hostId: string, hostName: string): Promise<string> {
   // Trigger background cleanup of expired rooms
-  cleanupExpiredRooms().catch(() => {});
+  cleanupExpiredRooms().catch(() => { });
 
   const roomId = generateRoomId();
   const initialRoom = {
@@ -140,15 +140,15 @@ export async function createRoom(gameType: string, hostId: string, hostName: str
 // Join a room
 export async function joinRoom(roomId: string, playerUid: string, playerName: string): Promise<boolean> {
   const upperRoomId = roomId.toUpperCase().trim();
-  
+
   // Trigger background cleanup of expired rooms
-  cleanupExpiredRooms().catch(() => {});
+  cleanupExpiredRooms().catch(() => { });
 
   if (isFirebaseConfigured && db) {
     const roomRef = ref(db, `rooms/${upperRoomId}`);
     const snapshot = await get(roomRef);
     if (!snapshot.exists()) return false;
-    
+
     const roomData = snapshot.val();
 
     // Check if room has expired
@@ -168,14 +168,14 @@ export async function joinRoom(roomId: string, playerUid: string, playerName: st
       ready: false,
       isHost: false
     });
-    
+
     const updatedHistory = [...(roomData.history || []), `${playerName} joined the room`];
     await update(roomRef, { history: updatedHistory });
     return true;
   } else {
     const raw = localStorage.getItem(`parlour_room_${upperRoomId}`);
     if (!raw) return false;
-    
+
     const roomData = JSON.parse(raw);
 
     // Check if room has expired
@@ -195,9 +195,9 @@ export async function joinRoom(roomId: string, playerUid: string, playerName: st
       isHost: false
     };
     roomData.history.push(`${playerName} joined the room`);
-    
+
     localStorage.setItem(`parlour_room_${upperRoomId}`, JSON.stringify(roomData));
-    
+
     // Sync via broadcast
     broadcastChannel?.postMessage({
       type: 'ROOM_UPDATE',
@@ -217,10 +217,10 @@ export async function updateRoom(roomId: string, updates: Partial<any>): Promise
     const raw = localStorage.getItem(`parlour_room_${roomId}`);
     if (!raw) return;
     const roomData = JSON.parse(raw);
-    
+
     const merged = { ...roomData, ...updates };
     localStorage.setItem(`parlour_room_${roomId}`, JSON.stringify(merged));
-    
+
     broadcastChannel?.postMessage({
       type: 'ROOM_UPDATE',
       roomId,
@@ -243,7 +243,7 @@ export function subscribeToRoom(roomId: string, callback: RoomCallback): () => v
         const roomData = snapshot.val();
         if (roomData.createdAt && (Date.now() - roomData.createdAt > ROOM_TTL_MS)) {
           // Room expired - delete it and notify subscriber
-          remove(roomRef).catch(() => {});
+          remove(roomRef).catch(() => { });
           callback(null);
         } else {
           callback(roomData);
@@ -258,7 +258,7 @@ export function subscribeToRoom(roomId: string, callback: RoomCallback): () => v
       mockSubscribers[upperRoomId] = new Set();
     }
     mockSubscribers[upperRoomId].add(callback);
-    
+
     const raw = localStorage.getItem(`parlour_room_${upperRoomId}`);
     if (raw) {
       const parsed = JSON.parse(raw);
