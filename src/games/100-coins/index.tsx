@@ -131,6 +131,53 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     }
   }, [isMultiplayer, playerId]);
 
+  // Sync round resolution & reveal results across both players in multiplayer
+  useEffect(() => {
+    if (!state) return;
+    const keys = Object.keys(players);
+    const p1 = keys[0];
+    const p2 = keys[1];
+    if (!p1 || !p2) return;
+
+    const bothSelectedPieces = !!state.lockedPiece?.[p1] && !!state.lockedPiece?.[p2];
+    const bothSelectedUpgrades = 
+      state.lockedUpgrade?.[p1] !== undefined && state.lockedUpgrade?.[p1] !== null &&
+      state.lockedUpgrade?.[p2] !== undefined && state.lockedUpgrade?.[p2] !== null;
+
+    if (bothSelectedPieces && bothSelectedUpgrades) {
+      const piece1 = state.lockedPiece[p1] as GamePiece;
+      const upgrade1 = state.lockedUpgrade[p1] === true;
+      
+      const piece2 = state.lockedPiece[p2] as GamePiece;
+      const upgrade2 = state.lockedUpgrade[p2] === true;
+
+      const result = resolveCombat(piece1, upgrade1, piece2, upgrade2);
+      
+      let wagerWon = state.wager;
+      if (result.winner === 'tie') {
+        wagerWon = 0;
+      }
+
+      setRoundResult({
+        piece1,
+        upgrade1,
+        name1: players[p1]?.name || 'Player 1',
+        piece2,
+        upgrade2,
+        name2: players[p2]?.name || 'Player 2',
+        winner: result.winner,
+        resolvedA: result.resolvedA,
+        resolvedB: result.resolvedB,
+        description: result.description,
+        wagerWon,
+      });
+      setShowRevealResult(true);
+    } else {
+      setShowRevealResult(false);
+      setRoundResult(null);
+    }
+  }, [state?.lockedPiece, state?.lockedUpgrade, state?.wager, players]);
+
   if (!state) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-brass font-serif">
