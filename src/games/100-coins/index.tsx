@@ -175,6 +175,7 @@ export const HundredCoinsGame: React.FC<HundredCoinsGameProps> = ({
     } else {
       setShowRevealResult(false);
       setRoundResult(null);
+      setIsResolving(false);
     }
   }, [state?.lockedPiece, state?.lockedUpgrade, state?.wager, players]);
 
